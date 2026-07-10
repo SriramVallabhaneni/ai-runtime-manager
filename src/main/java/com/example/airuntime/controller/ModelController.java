@@ -2,6 +2,8 @@ package com.example.airuntime.controller;
 
 import com.example.airuntime.model.ModelDeployRequest;
 import com.example.airuntime.service.KubernetesDeploymentService;
+import com.example.airuntime.dto.ModelResponse;
+import java.util.List;
 import io.kubernetes.client.openapi.models.V1Deployment;
 import io.kubernetes.client.openapi.models.V1DeploymentList;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +24,12 @@ public class ModelController {
     }
 
     @GetMapping
-    public V1DeploymentList listModels() throws Exception {
+    public List<ModelResponse> listModels() throws Exception {
         return service.listModels();
     }
 
     @GetMapping("/{name}")
-    public V1Deployment getModel(@PathVariable String name) throws Exception {
+    public ModelResponse getModel(@PathVariable String name) throws Exception {
         return service.getModel(name);
     }
 

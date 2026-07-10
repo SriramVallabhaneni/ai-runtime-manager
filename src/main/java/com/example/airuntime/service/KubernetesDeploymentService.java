@@ -1,6 +1,8 @@
 package com.example.airuntime.service;
 
 import com.example.airuntime.model.ModelDeployRequest;
+import com.example.airuntime.dto.ModelResponse;
+import java.util.List;
 import io.kubernetes.client.custom.IntOrString;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
@@ -67,12 +69,33 @@ public class KubernetesDeploymentService {
         return "Deployed model: " + request.getName();
     }
 
-    public V1DeploymentList listModels() throws Exception {
-        return appsApi.listNamespacedDeployment(namespace).execute();
+    public List<ModelResponse> listModels() throws Exception {
+        return appsApi.listNamespacedDeployment(namespace).execute()
+                .getItems()
+                .stream()
+                .map(this::toModelResponse)
+                .toList();
     }
 
-    public V1Deployment getModel(String name) throws Exception {
-        return appsApi.readNamespacedDeployment(name, namespace).execute();
+    public ModelResponse getModel(String name) throws Exception {
+        V1Deployment deployment = appsApi.readNamespacedDeployment(name, namespace).execute();
+        return toModelResponse(deployment);
+    }
+
+    private ModelResponse toModelResponse(V1Deployment deployment) {
+        String name = deployment.getMetadata().getName();
+
+        int replicas = deployment.getSpec().getReplicas() == null
+                ? 0
+                : deployment.getSpec().getReplicas();
+
+        int availableReplicas = deployment.getStatus().getAvailableReplicas() == null
+                ? 0
+                : deployment.getStatus().getAvailableReplicas();
+
+        String status = availableReplicas >= replicas ? "Running" : "Pending";
+
+        return new ModelResponse(name, replicas, availableReplicas, status);
     }
 
     public String deleteModel(String name) throws Exception {
