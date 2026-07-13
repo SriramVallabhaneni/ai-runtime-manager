@@ -137,4 +137,28 @@ public class KubernetesDeploymentService {
 
         return toModelResponse(updatedDeployment);
     }
+
+    public ModelResponse restartModel(String name) throws Exception {
+        V1Deployment deployment = appsApi.readNamespacedDeployment(name, namespace).execute();
+
+        Map<String, String> annotations = deployment.getSpec()
+                .getTemplate()
+                .getMetadata()
+                .getAnnotations();
+
+        if (annotations == null) {
+            annotations = new java.util.HashMap<>();
+            deployment.getSpec().getTemplate().getMetadata().setAnnotations(annotations);
+        }
+
+        annotations.put("kubectl.kubernetes.io/restartedAt", java.time.Instant.now().toString());
+
+        V1Deployment updatedDeployment = appsApi.replaceNamespacedDeployment(
+                name,
+                namespace,
+                deployment
+        ).execute();
+
+        return toModelResponse(updatedDeployment);
+    }
 }

@@ -55,4 +55,9 @@ public class ModelController {
     ) throws Exception {
         return service.updateImage(name, request);
     }
+
+   @PostMapping("/{name}/restart")
+    public ModelResponse restartModel(@PathVariable String name) throws Exception {
+        return service.restartModel(name);
+   }
 }
