@@ -1,6 +1,6 @@
 package com.example.airuntime.controller;
 
-import com.example.airuntime.dto.ModelDeployRequest;
+import com.example.airuntime.dto.DeployModelRequest;
 import com.example.airuntime.service.KubernetesDeploymentService;
 import com.example.airuntime.dto.ModelResponse;
 import com.example.airuntime.dto.ScaleModelRequest;
@@ -22,11 +22,11 @@ public class ModelController {
     }
 
     @Operation(
-            summary = "Deploy a new workload",
-            description = "Creates a Kubernetes Deployment and Service."
+            summary = "Deploy a supported AI model",
+            description = "Creates a Kubernetes Deployment and Service for a supported AI runtime."
     )
     @PostMapping
-    public String deployModel(@Valid @RequestBody ModelDeployRequest request) throws Exception {
+    public String deployModel(@Valid @RequestBody DeployModelRequest request) throws Exception {
         return service.deployModel(request);
     }
 

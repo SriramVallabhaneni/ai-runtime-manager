@@ -1,9 +1,11 @@
 package com.example.airuntime.service;
 
-import com.example.airuntime.dto.ModelDeployRequest;
+import com.example.airuntime.dto.DeployModelRequest;
 import com.example.airuntime.dto.ModelResponse;
 import com.example.airuntime.dto.ScaleModelRequest;
 import com.example.airuntime.dto.UpdateImageRequest;
+import com.example.airuntime.model.AiModel;
+import com.example.airuntime.model.AiModelRegistry;
 import java.util.List;
 import io.kubernetes.client.custom.IntOrString;
 import io.kubernetes.client.openapi.ApiClient;
@@ -21,19 +23,29 @@ public class KubernetesDeploymentService {
     private final CoreV1Api coreApi;
     private final String namespace = "default";
 
-    public KubernetesDeploymentService(ApiClient apiClient) {
+    private final AiModelRegistry aiModelRegistry;
+
+    public KubernetesDeploymentService(ApiClient apiClient, AiModelRegistry aiModelRegistry) {
         this.appsApi = new AppsV1Api(apiClient);
         this.coreApi = new CoreV1Api(apiClient);
+        this.aiModelRegistry = aiModelRegistry;
     }
 
-    public String deployModel(ModelDeployRequest request) throws Exception {
-        Map<String, String> labels = Map.of("app", request.getName());
+    public String deployModel(DeployModelRequest request) throws Exception {
+        AiModel aiModel = aiModelRegistry.get(request.getModel());
+
+        if (aiModel == null) {
+            throw new IllegalArgumentException("Unsupported model: " + request.getModel());
+        }
+
+        String deploymentName = request.getDeploymentName();
+        Map<String, String> labels = Map.of("app", deploymentName);
 
         V1Deployment deployment = new V1Deployment()
                 .apiVersion("apps/v1")
                 .kind("Deployment")
                 .metadata(new V1ObjectMeta()
-                        .name(request.getName())
+                        .name(deploymentName)
                         .labels(labels))
                 .spec(new V1DeploymentSpec()
                         .replicas(request.getReplicas())
@@ -43,11 +55,11 @@ public class KubernetesDeploymentService {
                                 .spec(new V1PodSpec()
                                         .containers(List.of(
                                                 new V1Container()
-                                                        .name(request.getName())
-                                                        .image(request.getImage())
+                                                        .name(deploymentName)
+                                                        .image(aiModel.image())
                                                         .ports(List.of(
                                                                 new V1ContainerPort()
-                                                                        .containerPort(request.getPort())
+                                                                        .containerPort(aiModel.port())
                                                         ))
                                         )))));
 
@@ -56,18 +68,18 @@ public class KubernetesDeploymentService {
         V1Service service = new V1Service()
                 .apiVersion("v1")
                 .kind("Service")
-                .metadata(new V1ObjectMeta().name(request.getName() + "-service"))
+                .metadata(new V1ObjectMeta().name(deploymentName + "-service"))
                 .spec(new V1ServiceSpec()
                         .selector(labels)
                         .ports(List.of(
                                 new V1ServicePort()
-                                        .port(request.getPort())
-                                        .targetPort(new IntOrString(request.getPort()))
+                                        .port(aiModel.port())
+                                        .targetPort(new IntOrString(aiModel.port()))
                         )));
 
         coreApi.createNamespacedService(namespace, service).execute();
 
-        return "Deployed model: " + request.getName();
+        return "Deployed AI model: " + request.getModel() + " as " + deploymentName;
     }
 
     public List<ModelResponse> listModels() throws Exception {
