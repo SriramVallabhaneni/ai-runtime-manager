@@ -1,6 +1,7 @@
 package com.example.airuntime.dto;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
@@ -16,7 +17,8 @@ public class DeployModelRequest {
     @NotBlank(message = "Model name is required")
     private String model;
 
-    @Min(value = 1, message = "Replicas must be at least 1")
+    @Min(value = 1, message = "Replicas must be 1")
+    @Max(value = 1, message = "Multiple replicas are not currently supported")
     private int replicas;
 
     public String getDeploymentName() {
