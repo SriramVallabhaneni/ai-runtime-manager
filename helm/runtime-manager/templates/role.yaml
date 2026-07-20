@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "runtime-manager.fullname" . }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  - apiGroups: [""]
+    resources:
+      - services
+      - persistentvolumeclaims
+      - pods
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
