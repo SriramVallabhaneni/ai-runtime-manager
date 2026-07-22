@@ -1,10 +1,35 @@
 HELP.md
+
+# =========================
+# Java / Maven
+# =========================
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+# =========================
+# Go
+# =========================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+bin/*
+Dockerfile.cross
+
+# Keep vendored generated files
+!vendor/**/zz_generated.*
+
+# =========================
+# IDEs
+# =========================
+
+# Spring Tool Suite
 .apt_generated
 .classpath
 .factorypath
@@ -13,13 +38,16 @@ target/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
+# IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
 
-### NetBeans ###
+# VS Code
+.vscode/
+
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
@@ -29,5 +57,27 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+# =========================
+# Editor files
+# =========================
+*.swp
+*.swo
+*~
+
+# =========================
+# Operating System files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Environment & Secrets
+# =========================
+.env
+.env.*
+*.kubeconfig
+
+# =========================
+# Logs
+# =========================
+*.log
