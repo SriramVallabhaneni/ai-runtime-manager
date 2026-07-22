@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -45,6 +46,7 @@ type AIModelDeploymentReconciler struct {
 // +kubebuilder:rbac:groups=runtime.airuntime.dev,resources=aimodeldeployments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -80,6 +82,11 @@ func (r *AIModelDeploymentReconciler) Reconcile(
 
 	// Reconcile the child Deployment.
 	if err := r.reconcileDeployment(ctx, aiModelDeployment); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Reconcile the Service that exposes the Ollama API.
+	if err := r.reconcileService(ctx, aiModelDeployment); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -209,6 +216,64 @@ func (r *AIModelDeploymentReconciler) reconcileDeployment(
 	return nil
 }
 
+func (r *AIModelDeploymentReconciler) reconcileService(
+	ctx context.Context,
+	aiModelDeployment *runtimev1alpha1.AIModelDeployment,
+) error {
+	logger := logf.FromContext(ctx)
+
+	serviceName := aiModelDeployment.Name + "-service"
+	service := &corev1.Service{}
+
+	err := r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      serviceName,
+			Namespace: aiModelDeployment.Namespace,
+		},
+		service,
+	)
+
+	if err == nil {
+		logger.Info(
+			"child Service already exists",
+			"service",
+			service.Name,
+		)
+
+		return nil
+	}
+
+	if !apierrors.IsNotFound(err) {
+		logger.Error(err, "unable to fetch child Service")
+		return err
+	}
+
+	service = r.serviceForAIModel(aiModelDeployment)
+
+	if err := controllerutil.SetControllerReference(
+		aiModelDeployment,
+		service,
+		r.Scheme,
+	); err != nil {
+		logger.Error(err, "unable to set owner reference on Service")
+		return err
+	}
+
+	logger.Info(
+		"creating child Service",
+		"service",
+		service.Name,
+	)
+
+	if err := r.Create(ctx, service); err != nil {
+		logger.Error(err, "unable to create child Service")
+		return err
+	}
+
+	return nil
+}
+
 func (r *AIModelDeploymentReconciler) pvcForAIModel(
 	aiModelDeployment *runtimev1alpha1.AIModelDeployment,
 ) (*corev1.PersistentVolumeClaim, error) {
@@ -247,6 +312,36 @@ func (r *AIModelDeploymentReconciler) pvcForAIModel(
 	}, nil
 }
 
+func (r *AIModelDeploymentReconciler) serviceForAIModel(
+	aiModelDeployment *runtimev1alpha1.AIModelDeployment,
+) *corev1.Service {
+	labels := map[string]string{
+		"app.kubernetes.io/name":       "ai-model-runtime",
+		"app.kubernetes.io/instance":   aiModelDeployment.Name,
+		"app.kubernetes.io/managed-by": "ai-runtime-operator",
+	}
+
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      aiModelDeployment.Name + "-service",
+			Namespace: aiModelDeployment.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeClusterIP,
+			Selector: labels,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Port:       11434,
+					TargetPort: intstr.FromString("http"),
+					Protocol:   corev1.ProtocolTCP,
+				},
+			},
+		},
+	}
+}
+
 func (r *AIModelDeploymentReconciler) deploymentForAIModel(
 	aiModelDeployment *runtimev1alpha1.AIModelDeployment,
 ) *appsv1.Deployment {
@@ -277,14 +372,48 @@ func (r *AIModelDeploymentReconciler) deploymentForAIModel(
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "model-storage",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: aiModelDeployment.Name + "-models",
+								},
+							},
+						},
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name:    "pull-model",
+							Image:   "ollama/ollama:latest",
+							Command: []string{"/bin/sh", "-c"},
+							Args: []string{
+								"ollama serve & pid=$!; sleep 5; ollama pull " +
+									aiModelDeployment.Spec.Model +
+									"; kill $pid",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "model-storage",
+									MountPath: "/root/.ollama",
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  "runtime",
-							Image: "nginx:1.27-alpine",
+							Image: "ollama/ollama:latest",
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",
-									ContainerPort: 80,
+									ContainerPort: 11434,
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "model-storage",
+									MountPath: "/root/.ollama",
 								},
 							},
 						},
@@ -301,6 +430,7 @@ func (r *AIModelDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&runtimev1alpha1.AIModelDeployment{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Named("aimodeldeployment").
 		Complete(r)
 }
