@@ -40,7 +40,7 @@ public class KubernetesDeploymentService {
         }
 
         String deploymentName = request.getDeploymentName();
-        Map<String, String> labels = Map.of("app", deploymentName);
+        Map<String, String> labels = Map.of("app", deploymentName, "airuntime.dev/managed", "true");
 
         String claimName = deploymentName + "-models";
 
@@ -173,7 +173,9 @@ public class KubernetesDeploymentService {
     }
 
     public List<ModelResponse> listModels() throws Exception {
-        return appsApi.listNamespacedDeployment(namespace).execute()
+        return appsApi.listNamespacedDeployment(namespace)
+                .labelSelector("airuntime.dev/managed=true")
+                .execute()
                 .getItems()
                 .stream()
                 .map(this::toModelResponse)
