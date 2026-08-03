@@ -11,11 +11,13 @@ import com.example.airuntime.dto.ScaleModelRequest;
 import com.example.airuntime.dto.UpdateImageRequest;
 import com.example.airuntime.model.AiModel;
 import com.example.airuntime.model.AiModelRegistry;
-
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1Deployment;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.airuntime.crd.AIModelDeployment;
 
 @Service
 public class KubernetesDeploymentService {
@@ -25,6 +27,8 @@ public class KubernetesDeploymentService {
     private final String namespace = "default";
 
     private final AiModelRegistry aiModelRegistry;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public KubernetesDeploymentService(ApiClient apiClient, AiModelRegistry aiModelRegistry) {
         this.appsApi = new AppsV1Api(apiClient);
@@ -64,30 +68,79 @@ public class KubernetesDeploymentService {
     }
 
     public List<ModelResponse> listModels() throws Exception {
-        return appsApi.listNamespacedDeployment(namespace)
-                .labelSelector("airuntime.dev/managed=true")
-                .execute()
-                .getItems()
-                .stream()
-                .map(this::toModelResponse)
-                .toList();
+
+        Object response = customObjectsApi.listNamespacedCustomObject(
+            "runtime.airuntime.dev",
+            "v1alpha1",
+            namespace,
+            "aimodeldeployments"
+        ).execute();
+
+        Map<String, Object> result = objectMapper.convertValue(
+            response,
+            new TypeReference<>() {}
+        );
+
+        List<AIModelDeployment> deployments = objectMapper.convertValue(
+            result.get("items"),
+            new TypeReference<>() {}
+        );
+
+        return deployments.stream()
+            .map(this::toModelResponse)
+            .toList();
     }
 
     public ModelResponse getModel(String name) throws Exception {
-        V1Deployment deployment = appsApi.readNamespacedDeployment(name, namespace).execute();
+
+        Object response = customObjectsApi.getNamespacedCustomObject(
+            "runtime.airuntime.dev",
+            "v1alpha1",
+            namespace,
+            "aimodeldeployments",
+            name
+        ).execute();
+
+        AIModelDeployment deployment =
+            objectMapper.convertValue(response, AIModelDeployment.class);
+
         return toModelResponse(deployment);
     }
 
+    private ModelResponse toModelResponse(AIModelDeployment deployment) {
+
+        String name = deployment.getMetadata().getName();
+
+        int replicas = deployment.getSpec().getReplicas();
+
+        String status = deployment.getStatus() == null
+            ? "Unknown"
+            : deployment.getStatus().getPhase();
+
+        int availableReplicas =
+            "Ready".equals(status)
+                    ? replicas
+                    : 0;
+
+        return new ModelResponse(
+            name,
+            replicas,
+            availableReplicas,
+            status
+        );
+    }
+
+    // TEMPORARY OVERLOAD FOR THIS FUNCTION
     private ModelResponse toModelResponse(V1Deployment deployment) {
         String name = deployment.getMetadata().getName();
 
         int replicas = deployment.getSpec().getReplicas() == null
-                ? 0
-                : deployment.getSpec().getReplicas();
+            ? 0
+            : deployment.getSpec().getReplicas();
 
         int availableReplicas = deployment.getStatus().getAvailableReplicas() == null
-                ? 0
-                : deployment.getStatus().getAvailableReplicas();
+            ? 0
+            : deployment.getStatus().getAvailableReplicas();
 
         String status = availableReplicas >= replicas ? "Running" : "Pending";
 
