@@ -15,9 +15,12 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.util.PatchUtils;
+import io.kubernetes.client.custom.V1Patch;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.airuntime.crd.AIModelDeployment;
+import com.example.airuntime.crd.RestartPatch;
 
 @Service
 public class KubernetesDeploymentService {
@@ -193,26 +196,45 @@ public class KubernetesDeploymentService {
     }
 
     public ModelResponse restartModel(String name) throws Exception {
-        V1Deployment deployment = appsApi.readNamespacedDeployment(name, namespace).execute();
 
-        Map<String, String> annotations = deployment.getSpec()
-                .getTemplate()
-                .getMetadata()
-                .getAnnotations();
-
-        if (annotations == null) {
-            annotations = new java.util.HashMap<>();
-            deployment.getSpec().getTemplate().getMetadata().setAnnotations(annotations);
-        }
-
-        annotations.put("kubectl.kubernetes.io/restartedAt", java.time.Instant.now().toString());
-
-        V1Deployment updatedDeployment = appsApi.replaceNamespacedDeployment(
-                name,
-                namespace,
-                deployment
+        Object response = customObjectsApi.getNamespacedCustomObject(
+            "runtime.airuntime.dev",
+            "v1alpha1",
+            namespace,
+            "aimodeldeployments",
+            name
         ).execute();
 
-        return toModelResponse(updatedDeployment);
+        AIModelDeployment deployment =
+            objectMapper.convertValue(response, AIModelDeployment.class);
+
+        Long currentGeneration = deployment.getSpec().getRestartGeneration();
+        long nextGeneration = (currentGeneration == null ? 0 : currentGeneration) + 1;
+
+        String patch = """
+        {
+            "spec": {
+            "restartGeneration": %d
+            }
+        }
+        """.formatted(nextGeneration);
+
+        PatchUtils.patch(
+            Object.class,
+            () -> customObjectsApi
+                .patchNamespacedCustomObject(
+                "runtime.airuntime.dev",
+                "v1alpha1",
+                namespace,
+                "aimodeldeployments",
+                name,
+                new V1Patch(patch)
+            )
+            .buildCall(null),
+            V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH,
+            customObjectsApi.getApiClient()
+        );
+
+        return getModel(name);
     }
 }

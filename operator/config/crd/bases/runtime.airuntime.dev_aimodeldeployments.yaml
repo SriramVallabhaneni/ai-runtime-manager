@@ -52,6 +52,12 @@ spec:
                 maximum: 1
                 minimum: 1
                 type: integer
+              restartGeneration:
+                default: 0
+                description: RestartGeneration increments whenever a rollout restart
+                  is requested.
+                format: int64
+                type: integer
               storageSize:
                 default: 5Gi
                 description: StorageSize controls the requested model-storage capacity.

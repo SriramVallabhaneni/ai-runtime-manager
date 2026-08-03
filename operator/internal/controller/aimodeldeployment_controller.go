@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -186,6 +188,33 @@ func (r *AIModelDeploymentReconciler) reconcileDeployment(
 			"deployment",
 			deployment.Name,
 		)
+
+		annotations := deployment.Spec.Template.Annotations
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+
+		currentGeneration := annotations["airuntime.dev/restartGeneration"]
+		desiredGeneration := fmt.Sprintf(
+			"%d",
+			aiModelDeployment.Spec.RestartGeneration,
+		)
+
+		if currentGeneration != desiredGeneration {
+			logger.Info(
+				"restarting deployment",
+				"deployment",
+				deployment.Name,
+			)
+
+			annotations["airuntime.dev/restartGeneration"] = desiredGeneration
+			annotations["kubectl.kubernetes.io/restartedAt"] =
+				time.Now().UTC().Format(time.RFC3339)
+
+			deployment.Spec.Template.Annotations = annotations
+
+			return r.Update(ctx, deployment)
+		}
 
 		return nil
 	}

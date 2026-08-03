@@ -8,6 +8,7 @@ public class Spec {
     private String model;
     private int replicas;
     private String storageSize;
+    private long restartGeneration;
 
     public String getModel() {
         return model;
@@ -19,5 +20,13 @@ public class Spec {
 
     public String getStorageSize() {
         return storageSize;
+    }
+
+    public long getRestartGeneration() {
+        return restartGeneration;
+    }
+
+    public void setRestartGeneration(long restartGeneration) {
+        this.restartGeneration = restartGeneration;
     }
 }

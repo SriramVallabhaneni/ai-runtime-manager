@@ -40,6 +40,10 @@ type AIModelDeploymentSpec struct {
 	// StorageSize controls the requested model-storage capacity.
 	// +kubebuilder:default="5Gi"
 	StorageSize string `json:"storageSize,omitempty"`
+
+	// RestartGeneration increments whenever a rollout restart is requested.
+	// +kubebuilder:default=0
+	RestartGeneration int64 `json:"restartGeneration,omitempty"`
 }
 
 // AIModelDeploymentStatus defines the observed state of AIModelDeployment.
