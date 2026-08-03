@@ -90,6 +90,10 @@ func (r *AIModelDeploymentReconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
+	if err := r.updateStatus(ctx, aiModelDeployment, "Ready", true, "Runtime is available"); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -422,6 +426,21 @@ func (r *AIModelDeploymentReconciler) deploymentForAIModel(
 			},
 		},
 	}
+}
+
+func (r *AIModelDeploymentReconciler) updateStatus(
+	ctx context.Context,
+	aiModelDeployment *runtimev1alpha1.AIModelDeployment,
+	phase string,
+	ready bool,
+	message string,
+) error {
+
+	aiModelDeployment.Status.Phase = phase
+	aiModelDeployment.Status.Ready = ready
+	aiModelDeployment.Status.Message = message
+
+	return r.Status().Update(ctx, aiModelDeployment)
 }
 
 // SetupWithManager sets up the controller with the Manager.
