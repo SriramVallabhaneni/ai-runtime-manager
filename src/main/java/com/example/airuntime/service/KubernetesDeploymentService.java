@@ -14,7 +14,6 @@ import com.example.airuntime.model.AiModelRegistry;
 
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
-import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1Deployment;
 
@@ -22,7 +21,6 @@ import io.kubernetes.client.openapi.models.V1Deployment;
 public class KubernetesDeploymentService {
 
     private final AppsV1Api appsApi;
-    private final CoreV1Api coreApi;
     private final CustomObjectsApi customObjectsApi;
     private final String namespace = "default";
 
@@ -30,7 +28,6 @@ public class KubernetesDeploymentService {
 
     public KubernetesDeploymentService(ApiClient apiClient, AiModelRegistry aiModelRegistry) {
         this.appsApi = new AppsV1Api(apiClient);
-        this.coreApi = new CoreV1Api(apiClient);
         this.aiModelRegistry = aiModelRegistry;
         this.customObjectsApi = new CustomObjectsApi(apiClient);
     }
@@ -112,13 +109,15 @@ public class KubernetesDeploymentService {
     }
 
     public String deleteModel(String name) throws Exception {
-        appsApi.deleteNamespacedDeployment(name, namespace).execute();
-        coreApi.deleteNamespacedService(name + "-service", namespace).execute();
-        coreApi.deleteNamespacedPersistentVolumeClaim(
-                name + "-models",
-                namespace
+        customObjectsApi.deleteNamespacedCustomObject(
+            "runtime.airuntime.dev",
+            "v1alpha1",
+            namespace,
+            "aimodeldeployments",
+            name
         ).execute();
-        return "Deleted model: " + name;
+
+    return "Deleted AI model deployment: " + name;
     }
 
     public ModelResponse updateImage(String name, UpdateImageRequest request) throws Exception {

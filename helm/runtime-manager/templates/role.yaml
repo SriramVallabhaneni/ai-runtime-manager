@@ -13,3 +13,7 @@ rules:
       - persistentvolumeclaims
       - pods
     verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["runtime.airuntime.dev"]
+    resources: ["aimodeldeployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
