@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import com.example.airuntime.dto.DeployModelRequest;
 import com.example.airuntime.dto.ModelResponse;
 import com.example.airuntime.dto.ScaleModelRequest;
-import com.example.airuntime.dto.UpdateImageRequest;
 import com.example.airuntime.model.AiModel;
 import com.example.airuntime.model.AiModelRegistry;
 import io.kubernetes.client.openapi.ApiClient;
@@ -174,25 +173,6 @@ public class KubernetesDeploymentService {
         ).execute();
 
     return "Deleted AI model deployment: " + name;
-    }
-
-    public ModelResponse updateImage(String name, UpdateImageRequest request) throws Exception {
-        V1Deployment deployment = appsApi.readNamespacedDeployment(name, namespace).execute();
-
-        deployment.getSpec()
-                .getTemplate()
-                .getSpec()
-                .getContainers()
-                .get(0)
-                .setImage(request.getImage());
-
-        V1Deployment updatedDeployment = appsApi.replaceNamespacedDeployment(
-                name,
-                namespace,
-                deployment
-        ).execute();
-
-        return toModelResponse(updatedDeployment);
     }
 
     public ModelResponse restartModel(String name) throws Exception {

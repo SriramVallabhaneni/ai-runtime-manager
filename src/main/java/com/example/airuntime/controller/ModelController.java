@@ -4,7 +4,6 @@ import com.example.airuntime.dto.DeployModelRequest;
 import com.example.airuntime.service.KubernetesDeploymentService;
 import com.example.airuntime.dto.ModelResponse;
 import com.example.airuntime.dto.ScaleModelRequest;
-import com.example.airuntime.dto.UpdateImageRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 
@@ -59,18 +58,6 @@ public class ModelController {
             @Valid @RequestBody ScaleModelRequest request
     ) throws Exception {
         return service.scaleModel(name, request);
-    }
-
-    @Operation(
-            summary = "Update container image",
-            description = "Performs a rolling update by changing the deployment image."
-    )
-    @PatchMapping("/{name}/image")
-    public ModelResponse updateImage(
-            @PathVariable String name,
-            @Valid @RequestBody UpdateImageRequest request
-    ) throws Exception {
-        return service.updateImage(name, request);
     }
 
     @Operation(
